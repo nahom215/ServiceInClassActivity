@@ -24,7 +24,7 @@ class TimerService : Service() {
         val isRunning: Boolean
             get() = this@TimerService.isRunning
 
-        // Check if Timer is already running
+        // Check if Timer is paused
         val paused: Boolean
             get() = this@TimerService.paused
 
@@ -41,6 +41,7 @@ class TimerService : Service() {
             }
         }
 
+        // Receive updates from Service
         fun setHandler(handler: Handler) {
             timerHandler = handler
         }
