@@ -1,103 +1,56 @@
 package edu.temple.myapplication
 
-import android.app.Service
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.widget.Button
 import android.content.Intent
-import android.os.Binder
-import android.os.Handler
+import android.content.ComponentName
+import android.content.Context
+import android.content.ServiceConnection
 import android.os.IBinder
-import android.util.Log
+import android.os.Handler
 
-@Suppress("ControlFlowWithEmptyBody")
-class TimerService : Service() {
+class MainActivity : AppCompatActivity() {
 
-    private var isRunning = false
-    private var timerHandler: Handler? = null
-    private lateinit var t: TimerThread
-    private var paused = false
+    // ✅ Define handler before using it
+    private val handler = Handler { msg ->
+        println("Count: ${msg.what}")
+        true
+    }
 
-    inner class TimerBinder : Binder() {
+    private var timerService: TimerService.TimerBinder? = null
+    private var isBound = false
 
-        val isRunning: Boolean
-            get() = this@TimerService.isRunning
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            timerService = service as TimerService.TimerBinder
+            timerService?.setHandler(handler)
+            isBound = true
+        }
 
-        val paused: Boolean
-            get() = this@TimerService.paused
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isBound = false
+            timerService = null
+        }
+    }
 
-        fun start(startValue: Int) {
-            if (!paused) {
-                if (!isRunning) {
-                    if (::t.isInitialized) t.interrupt()
-                    this@TimerService.start(startValue)
-                }
-            } else {
-                pause()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        findViewById<Button>(R.id.startButton).setOnClickListener {
+            val intent = Intent(this, TimerService::class.java)
+            bindService(intent, connection, Context.BIND_AUTO_CREATE)
+
+            if (isBound) {
+                timerService?.start(100)
             }
         }
 
-        fun setHandler(handler: Handler) {
-            timerHandler = handler
-        }
-
-        fun stop() {
-            if (::t.isInitialized && isRunning) {
-                t.interrupt()
+        findViewById<Button>(R.id.stopButton).setOnClickListener {
+            if (isBound) {
+                timerService?.pause() // toggle pause/resume
             }
         }
-
-        fun pause() {
-            this@TimerService.pause()
-        }
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        Log.d("TimerService status", "Created")
-    }
-
-    override fun onBind(intent: Intent): IBinder {
-        return TimerBinder()
-    }
-
-    fun start(startValue: Int) {
-        t = TimerThread(startValue)
-        t.start()
-    }
-
-    fun pause() {
-        if (::t.isInitialized) {
-            paused = !paused
-            isRunning = !paused
-        }
-    }
-
-    inner class TimerThread(private val startValue: Int) : Thread() {
-        override fun run() {
-            isRunning = true
-            try {
-                for (i in startValue downTo 1) {
-                    Log.d("Countdown", i.toString())
-                    timerHandler?.sendEmptyMessage(i)
-                    while (paused);
-                    sleep(1000)
-                }
-                isRunning = false
-            } catch (e: InterruptedException) {
-                Log.d("Timer interrupted", e.toString())
-                isRunning = false
-                paused = false
-            }
-        }
-    }
-
-    override fun onUnbind(intent: Intent?): Boolean {
-        if (::t.isInitialized) {
-            t.interrupt()
-        }
-        return super.onUnbind(intent)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Log.d("TimerService status", "Destroyed")
     }
 }
